@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚀 Spacebar Jumper</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+      color: white;
+      font-family: 'Press Start 2P', cursive;
+      text-align: center;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      margin: 20px auto;
+      background: #000;
+      border: 4px solid #00ffcc;
+    }
+    h1 {
+      font-size: 24px;
+      color: #00ffcc;
+      margin-top: 20px;
+    }
+    #intro, #gameOverScreen, #avatarSelection {
+      position: absolute;
+      width: 100%;
+      top: 30%;
+      color: white;
+      font-size: 18px;
+      display: none;
+    }
+    #startButton, #restartButton, .avatarBtn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #00ffcc;
+      color: black;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Press Start 2P', fantasy;
+      margin: 5px;
+    }
+    #startButton:hover, #restartButton:hover, .avatarBtn:hover {
+      background-color: #00ccaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 Spacebar Jumper</h1>
+  <div id="avatarSelection">
+    <p>Choose your avatar:</p>
+    <button class="avatarBtn" onclick="selectAvatar('square', '#00ffcc')"> Square</button>
+    <button class="avatarBtn" onclick="selectAvatar('circle', '#0000ff')"> Circle</button>
+    <button class="avatarBtn" onclick="selectAvatar('triangle', '#ffff33')"> Triangle</button>
+  </div>
+
+  <div id="intro">
+    <p>Welcome to <strong>🚀 Spacebar Jumper</strong>!</p>
+    <p>🕹️ Press <strong>SPACEBAR</strong> once or twice to jump or double jump.</p>
+    <p>⬅️ ➡️ Use <strong>LEFT</strong> and <strong>RIGHT</strong> arrows to move.</p>
+    <p>Don't be gay. Good luck</p>
+    <button id="startButton">Start Game</button>
+  </div>
+
+  <canvas id="gameCanvas" width="500" height="600"></canvas>
+
+  <div id="gameOverScreen">
+    <p id="finalScore"></p>
+    <button id="restartButton">Restart Game</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const avatarSelection = document.getElementById('avatarSelection');
+    const intro = document.getElementById('intro');
+    const startButton = document.getElementById('startButton');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+    const restartButton = document.getElementById('restartButton');
+
+    let player, stairs, bombs, gameSpeed, level, score, gameOver, keys, doubleJumpCount;
+    let avatarShape = 'square';
+    let avatarColor = '#00ffcc';
+
+    function selectAvatar(shape, color) {
+      avatarShape = shape;
+      avatarColor = color;
+      avatarSelection.style.display = 'none';
+      intro.style.display = 'block';
+    }
+
+    function initGame() {
+      player = {
+        x: 240,
+        y: 300,
+        width: 20,
+        height: 20,
+        color: avatarColor,
+        shape: avatarShape,
+        dx: 0,
+        dy: 0,
+        gravity: 0.5,
+        jumpPower: -10,
+        isJumping: false,
+        canDoubleJump: true
+      };
+
+      stairs = [{ x: 220, y: 320, width: 60, height: 10 }];
+      bombs = [];
+      gameSpeed = 2;
+      level = 1;
+      score = 0;
+      gameOver = false;
+      keys = {};
+      doubleJumpCount = 0;
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      if (player.shape === 'square') {
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      } else if (player.shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(player.x + player.width / 2, player.y + player.height / 2, player.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (player.shape === 'triangle') {
+        ctx.beginPath();
+        ctx.moveTo(player.x + player.width / 2, player.y);
+        ctx.lineTo(player.x, player.y + player.height);
+        ctx.lineTo(player.x + player.width, player.y + player.height);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    function drawStairs() {
+      ctx.fillStyle = '#eee';
+      stairs.forEach(stair => {
+        ctx.fillRect(stair.x, stair.y, stair.width, stair.height);
+      });
+    }
+
+    function drawBombs() {
+      ctx.fillStyle = 'red';
+      bombs.forEach(bomb => {
+        ctx.beginPath();
+        ctx.arc(bomb.x + 10, bomb.y + 10, 10, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function updatePlayer() {
+      if (keys['ArrowLeft']) player.dx = -3;
+      else if (keys['ArrowRight']) player.dx = 3;
+      else player.dx = 0;
+
+      player.x += player.dx;
+      player.dy += player.gravity;
+      player.y += player.dy;
+
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+      let landed = false;
+      for (let stair of stairs) {
+        if (
+          player.y + player.height >= stair.y &&
+          player.y + player.height <= stair.y + stair.height + Math.abs(player.dy) &&
+          player.x + player.width >= stair.x &&
+          player.x <= stair.x + stair.width &&
+          player.dy >= 0
+        ) {
+          player.dy = 0;
+          player.y = stair.y - player.height;
+          player.isJumping = false;
+          player.canDoubleJump = true;
+          landed = true;
+        }
+      }
+      if (!landed && player.dy !== 0) player.isJumping = true;
+
+      for (let bomb of bombs) {
+        if (
+          player.x < bomb.x + bomb.width &&
+          player.x + player.width > bomb.x &&
+          player.y < bomb.y + bomb.height &&
+          player.y + player.height > bomb.y
+        ) {
+          gameOver = true;
+        }
+      }
+
+      if (player.y > canvas.height || player.y + player.height < 0) gameOver = true;
+    }
+
+    function updateStairs() {
+      stairs.forEach(stair => stair.y -= gameSpeed);
+      stairs = stairs.filter(stair => stair.y + stair.height > 0);
+      if (Math.random() < 0.02 * level) createStair();
+    }
+
+    function createStair() {
+      let width = 40 + Math.random() * (80 - level);
+      let x = Math.random() * (canvas.width - width);
+      stairs.push({ x, y: canvas.height, width, height: 10 });
+    }
+
+    function updateBombs() {
+      bombs.forEach(bomb => bomb.y -= gameSpeed);
+      bombs = bombs.filter(bomb => bomb.y + bomb.height > 0);
+    }
+
+    function createBomb() {
+      let x = Math.random() * (canvas.width - 20);
+      bombs.push({ x, y: canvas.height, width: 20, height: 20 });
+    }
+
+    function increaseDifficulty() {
+      score++;
+      if (score % 100 === 0) {
+        gameSpeed += 0.5;
+        level++;
+        if (level >= 3 && Math.random() < 0.3) createBomb();
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = '#00ffcc';
+      ctx.font = '14px Press Start 2P';
+      ctx.fillText('Score: ' + score, 10, 30);
+    }
+
+    function loop() {
+      if (gameOver) {
+        finalScore.textContent = 'Game Over! Final Score: ' + score;
+        gameOverScreen.style.display = 'block';
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      updatePlayer();
+      updateStairs();
+      updateBombs();
+      increaseDifficulty();
+      drawStairs();
+      drawBombs();
+      drawPlayer();
+      drawScore();
+
+      requestAnimationFrame(loop);
+    }
+
+    document.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'Space') {
+        if (!player.isJumping) {
+          player.dy = player.jumpPower;
+          player.isJumping = true;
+          doubleJumpCount = 1;
+        } else if (player.canDoubleJump && doubleJumpCount === 1) {
+          player.dy = player.jumpPower;
+          player.canDoubleJump = false;
+          doubleJumpCount = 2;
+        }
+      }
+    });
+
+    document.addEventListener('keyup', e => {
+      keys[e.code] = false;
+    });
+
+    startButton.onclick = () => {
+      intro.style.display = 'none';
+      initGame();
+      loop();
+    };
+
+    restartButton.onclick = () => {
+      gameOverScreen.style.display = 'none';
+      avatarSelection.style.display = 'block';
+    };
+
+    avatarSelection.style.display = 'block';
+  </script>
+</body>
+</html>
